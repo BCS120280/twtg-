@@ -335,9 +335,9 @@ if (typeof module !== 'undefined') {
 
           var se = {
             protocol_version: 3,
-            selection,
-            selection_id,
-            selection_raw,
+            selection: selection,
+            selection_id: selection_id,
+            selection_raw: selection_raw,
             trigger_id: ((conditions>>6)&3),
             trigger: trigName((conditions>>6)&3),
             conditions_raw: conditions,
