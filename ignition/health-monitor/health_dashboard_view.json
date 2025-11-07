@@ -1,0 +1,390 @@
+{
+  "custom": {},
+  "params": {},
+  "propConfig": {
+    "params.tagProvider": {
+      "paramDirection": "input",
+      "persistent": true
+    }
+  },
+  "props": {
+    "defaultSize": {
+      "height": 900,
+      "width": 1400
+    }
+  },
+  "root": {
+    "children": [
+      {
+        "meta": {
+          "name": "HeaderContainer"
+        },
+        "position": {
+          "height": 80,
+          "width": 1400
+        },
+        "props": {
+          "style": {
+            "background": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+            "paddingLeft": 20,
+            "paddingRight": 20
+          }
+        },
+        "type": "ia.container.flex"
+      },
+      {
+        "meta": {
+          "name": "OverallHealthCard"
+        },
+        "position": {
+          "height": 120,
+          "width": 1400,
+          "y": 90
+        },
+        "props": {
+          "direction": "row",
+          "style": {
+            "marginLeft": 20,
+            "marginRight": 20
+          }
+        },
+        "type": "ia.container.flex",
+        "children": [
+          {
+            "meta": {
+              "name": "HealthStatusCard"
+            },
+            "propConfig": {
+              "props.tag": {
+                "binding": {
+                  "config": {
+                    "path": "[default]Health/Overall_Healthy"
+                  },
+                  "type": "tag"
+                }
+              }
+            },
+            "props": {
+              "style": {
+                "background": {
+                  "binding": {
+                    "config": {
+                      "expression": "if({this.custom.isHealthy}, '#10b981', '#ef4444')"
+                    },
+                    "type": "expr"
+                  }
+                },
+                "borderRadius": "8px",
+                "boxShadow": "0 4px 6px rgba(0,0,0,0.1)",
+                "color": "white",
+                "flex": 2,
+                "marginRight": 20,
+                "padding": 20
+              }
+            },
+            "type": "ia.container.flex",
+            "children": [
+              {
+                "meta": {
+                  "name": "StatusTitle"
+                },
+                "props": {
+                  "style": {
+                    "fontSize": "18px",
+                    "fontWeight": "600",
+                    "marginBottom": 10
+                  },
+                  "text": "System Health Status"
+                },
+                "type": "ia.display.label"
+              },
+              {
+                "meta": {
+                  "name": "StatusValue"
+                },
+                "propConfig": {
+                  "props.text": {
+                    "binding": {
+                      "config": {
+                        "path": "[default]Health/Overall_Healthy",
+                        "transform": {
+                          "code": "\tif value:\n\t\treturn \"✓ ALL SYSTEMS OPERATIONAL\"\n\telse:\n\t\treturn \"✗ SYSTEMS DEGRADED\"",
+                          "type": "script"
+                        }
+                      },
+                      "type": "tag"
+                    }
+                  }
+                },
+                "props": {
+                  "style": {
+                    "fontSize": "32px",
+                    "fontWeight": "700"
+                  }
+                },
+                "type": "ia.display.label"
+              }
+            ]
+          },
+          {
+            "meta": {
+              "name": "MetricsCard"
+            },
+            "props": {
+              "direction": "column",
+              "style": {
+                "background": "white",
+                "borderRadius": "8px",
+                "boxShadow": "0 4px 6px rgba(0,0,0,0.1)",
+                "flex": 1,
+                "padding": 20
+              }
+            },
+            "type": "ia.container.flex",
+            "children": [
+              {
+                "meta": {
+                  "name": "ExecutionTimeLabel"
+                },
+                "props": {
+                  "style": {
+                    "color": "#6b7280",
+                    "fontSize": "14px",
+                    "marginBottom": 5
+                  },
+                  "text": "Last Check Duration"
+                },
+                "type": "ia.display.label"
+              },
+              {
+                "meta": {
+                  "name": "ExecutionTimeValue"
+                },
+                "propConfig": {
+                  "props.text": {
+                    "binding": {
+                      "config": {
+                        "path": "[default]Health/ScriptExecutionMs",
+                        "transform": {
+                          "code": "\treturn str(value) + \" ms\"",
+                          "type": "script"
+                        }
+                      },
+                      "type": "tag"
+                    }
+                  }
+                },
+                "props": {
+                  "style": {
+                    "color": "#111827",
+                    "fontSize": "24px",
+                    "fontWeight": "600"
+                  }
+                },
+                "type": "ia.display.label"
+              },
+              {
+                "meta": {
+                  "name": "LastCheckLabel"
+                },
+                "propConfig": {
+                  "props.text": {
+                    "binding": {
+                      "config": {
+                        "path": "[default]Health/LastExecutionTime",
+                        "transform": {
+                          "code": "\tfrom java.text import SimpleDateFormat\n\tfmt = SimpleDateFormat(\"MM/dd/yyyy HH:mm:ss\")\n\treturn fmt.format(value)",
+                          "type": "script"
+                        }
+                      },
+                      "type": "tag"
+                    }
+                  }
+                },
+                "props": {
+                  "style": {
+                    "color": "#9ca3af",
+                    "fontSize": "12px",
+                    "marginTop": 10
+                  }
+                },
+                "type": "ia.display.label"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "meta": {
+          "name": "FaultSummaryCard"
+        },
+        "position": {
+          "height": 80,
+          "width": 1400,
+          "y": 220
+        },
+        "propConfig": {
+          "props.style.background": {
+            "binding": {
+              "config": {
+                "path": "[default]Health/Overall_Healthy",
+                "transform": {
+                  "code": "\tif value:\n\t\treturn \"#d1fae5\"\n\telse:\n\t\treturn \"#fee2e2\"",
+                  "type": "script"
+                }
+              },
+              "type": "tag"
+            }
+          }
+        },
+        "props": {
+          "style": {
+            "borderRadius": "8px",
+            "marginLeft": 20,
+            "marginRight": 20,
+            "padding": 20
+          }
+        },
+        "type": "ia.container.flex",
+        "children": [
+          {
+            "meta": {
+              "name": "FaultLabel"
+            },
+            "props": {
+              "style": {
+                "fontSize": "14px",
+                "fontWeight": "600",
+                "marginBottom": 8
+              },
+              "text": "Status Summary:"
+            },
+            "type": "ia.display.label"
+          },
+          {
+            "meta": {
+              "name": "FaultText"
+            },
+            "propConfig": {
+              "props.text": {
+                "binding": {
+                  "config": {
+                    "path": "[default]Health/Fault_Summary"
+                  },
+                  "type": "tag"
+                }
+              }
+            },
+            "props": {
+              "style": {
+                "fontSize": "14px"
+              }
+            },
+            "type": "ia.display.label"
+          }
+        ]
+      },
+      {
+        "meta": {
+          "name": "ComponentsTable"
+        },
+        "position": {
+          "height": 550,
+          "width": 1400,
+          "y": 310
+        },
+        "propConfig": {
+          "props.data": {
+            "binding": {
+              "config": {
+                "polling": {
+                  "enabled": true,
+                  "rate": "5"
+                },
+                "script": "\t# Build health status table data\n\tcomponents = [\n\t\t\"ThingPark_Inbound\",\n\t\t\"MQTT_Broker\",\n\t\t\"MQTT_Transmission\",\n\t\t\"SiteSync_API\",\n\t\t\"PI_Adapter\",\n\t\t\"PI_Adapter_API\",\n\t\t\"PI_WebAPI\",\n\t\t\"GeoEvent\",\n\t\t\"Azure_Function\",\n\t\t\"Actility_API\",\n\t\t\"PI_Adapter_Link\",\n\t\t\"SiteSync_UI\",\n\t\t\"SiteSync_UI_External\",\n\t\t\"LDAP_Green\",\n\t\t\"Azure_EventHub_Dev\",\n\t\t\"Azure_EventHub_Prod\"\n\t]\n\t\n\tresults = []\n\t\n\tfor comp in components:\n\t\tbase = \"[default]Health/\" + comp\n\t\tpaths = [\n\t\t\tbase + \"/IsHealthy\",\n\t\t\tbase + \"/Status\",\n\t\t\tbase + \"/Message\",\n\t\t\tbase + \"/LatencyMs\",\n\t\t\tbase + \"/LastCheck\",\n\t\t\tbase + \"/LastOK\"\n\t\t]\n\t\t\n\t\tqv = system.tag.readBlocking(paths)\n\t\t\n\t\tif qv[0] and qv[0].quality.isGood():\n\t\t\tresults.append({\n\t\t\t\t\"component\": comp.replace(\"_\", \" \"),\n\t\t\t\t\"healthy\": bool(qv[0].value),\n\t\t\t\t\"status\": str(qv[1].value) if qv[1] and qv[1].quality.isGood() else \"UNKNOWN\",\n\t\t\t\t\"message\": str(qv[2].value) if qv[2] and qv[2].quality.isGood() else \"\",\n\t\t\t\t\"latency\": int(qv[3].value) if qv[3] and qv[3].quality.isGood() else -1,\n\t\t\t\t\"lastCheck\": qv[4].value if qv[4] and qv[4].quality.isGood() else None,\n\t\t\t\t\"lastOK\": qv[5].value if qv[5] and qv[5].quality.isGood() else None\n\t\t\t})\n\t\n\treturn results"
+              },
+              "type": "script"
+            }
+          }
+        },
+        "props": {
+          "columns": [
+            {
+              "field": "component",
+              "header": "Component",
+              "render": "auto",
+              "sortable": true,
+              "strict": true,
+              "width": 220
+            },
+            {
+              "field": "healthy",
+              "header": "Status",
+              "render": "toggle",
+              "sortable": true,
+              "strict": true,
+              "width": 100,
+              "viewStyle": {
+                "classes": "health-status-cell"
+              }
+            },
+            {
+              "field": "status",
+              "header": "State",
+              "render": "auto",
+              "sortable": true,
+              "strict": true,
+              "width": 100
+            },
+            {
+              "field": "message",
+              "header": "Details",
+              "render": "auto",
+              "sortable": false,
+              "strict": true,
+              "width": 400
+            },
+            {
+              "field": "latency",
+              "header": "Latency (ms)",
+              "render": "auto",
+              "sortable": true,
+              "strict": true,
+              "width": 120
+            },
+            {
+              "field": "lastCheck",
+              "header": "Last Check",
+              "render": "date",
+              "sortable": true,
+              "strict": true,
+              "width": 180,
+              "dateFormat": "MM/dd/yy HH:mm:ss"
+            },
+            {
+              "field": "lastOK",
+              "header": "Last OK",
+              "render": "date",
+              "sortable": true,
+              "strict": true,
+              "width": 180,
+              "dateFormat": "MM/dd/yy HH:mm:ss"
+            }
+          ],
+          "selection": {
+            "enabled": false
+          },
+          "style": {
+            "marginLeft": 20,
+            "marginRight": 20
+          }
+        },
+        "type": "ia.display.table"
+      }
+    ],
+    "meta": {
+      "name": "root"
+    },
+    "type": "ia.container.coord"
+  }
+}
