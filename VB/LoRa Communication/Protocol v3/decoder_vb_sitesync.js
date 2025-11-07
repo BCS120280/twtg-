@@ -550,15 +550,17 @@ function decode_sensor_event_msg_normal(bytes, cursor) {
 
   sensor_event.selection = lookup_selection(selection);
 
-  // Warn if extra bits are set (possible firmware variant)
-  if (selection_byte > 3) {
+  // For 11-byte payloads, if selection bits indicate "extended", it's a firmware bug
+  // We trust the payload length and decode as normal format
+  if (sensor_event.selection == "extended") {
+    sensor_event.selection_raw = selection_byte;
+    sensor_event.selection_note = "Selection bits indicate 'extended' but payload is 11 bytes (normal format). Treating as avg_only.";
+    sensor_event.selection = "avg_only";  // Default to avg_only for 11-byte normal messages
+  } else if (selection_byte > 3) {
+    // Warn if extra bits are set (possible firmware variant)
     sensor_event.selection_raw = selection_byte;
     sensor_event.selection_note = "Extra bits detected in selection byte (0x" +
       uint8_to_hex(selection_byte) + "), using bits 0-1 only";
-  }
-
-  if (sensor_event.selection == "extended") {
-    throw new Error("Mismatch: extended flag set but message length is normal (11 bytes)");
   }
 
   var conditions = decode_uint8(bytes, cursor);
