@@ -263,10 +263,239 @@ if (typeof module !== 'undefined') {
   }
 
   /**
-   * Decoder for The Things Network network server
+   * Decoder for The Things Network network server (Compact Version with Little-Endian Fix)
    */
-  function Decoder(obj, fPort) {
-    return Decode(fPort, obj);
+  function Decoder(bytes, port)
+  {
+    // --- helpers (scoped inside Decoder) - LITTLE-ENDIAN byte order ---
+    function readU8(b,c){var r=b[c.i];c.i++;return r;}
+    function readI8(b,c){var v=b[c.i];c.i++;return (v&0x80)?(v-256):v;}
+    function readU16(b,c){var i=c.i;var r=b[i]|(b[i+1]<<8);c.i+=2;return r;} // LITTLE-ENDIAN
+    function readI16(b,c){var v=readU16(b,c);return (v&0x8000)?(v-0x10000):v;}
+    function readU32(b,c){var i=c.i;var r=b[i]|(b[i+1]<<8)|(b[i+2]<<16)|(b[i+3]<<24);c.i+=4;return (r>>>0);} // LITTLE-ENDIAN
+    function hex2(v,n){return ("00000000"+v.toString(16).toUpperCase()).slice(-n);}
+    function toHexStr(arr){var s="";for(var i=0;i<arr.length;i++)s+=hex2(arr[i],2);return s;}
+    function trigName(t){return t===0?"condition change":t===1?"periodic":t===2?"button press":"unknown";}
+    function selName(s){return s===0?"extended":s===1?"min_only":s===2?"max_only":s===3?"avg_only":"unknown";}
+    function rssiBucket(r){return r===0?"0..-79":r===1?"-80..-99":r===2?"-100..-129":r===3?"<-129":"unknown";}
+    function battV(b,c){var raw=readU8(b,c);return 2+(raw*(2/255));}
+    function cToF(c){return (c*9/5)+32;}
+
+    // scale LUT (kept for completeness)
+    function dataScale(idx){
+      var v=[0.01,0.0108175019990394,0.0117018349499221,0.0126584622963211,0.0136932941195217,0.014812723651136,0.0160236667707382,0.0173336047324401,0.0187506303843729,0.0202834981666202,0.0219416781964925,0.0237354147752836,0.0256757896779659,0.027774790616831,0.0300453853020469,0.0325016015566801,0.0351586139811367,0.03803283770244,0.0411420297875284,0.0445053989471126,0.0481437242078435,0.0520794832859547,0.0563369914554751,0.0609425517689466,0.0659246175587139,0.0713139682227294,0.0771438993808804,0.0834504285766365,0.0902725177948457,0.097652314170406,0.105635410374919,0.114271126290003,0.123612813707458,0.133718185938731,0.144649674370014,0.156474814165802,0.169266661503788,0.183104244918794,0.198073053544165,0.214265565266983,0.231781818060089,0.250730028020599,0.271227257933203,0.293400140488639,0.317385660625428,0.3433320018282,0.371399461611073,0.401761441841993,0.434605520026269,0.470134608167771,0.508568206367245,0.550143758902554,0.59511812116874,0.64376914654074,0.696397402962432,0.753328029867193,0.814912746902074,0.881532026865585,0.953597446283568,1.03155422814513,1.11588399250775,1.20710773196486,1.30578903035857,1.41253754462275,1.52801277126748,1.65292812077436,1.78805532507451,1.93422920533864,2.09235282953511,2.26340309161917,2.44843674682223,2.64859694032709,2.86512026966378,3.09934442445761,3.35271645072817,3.62680169079642,3.92329345403096,4.24402347817979,4.59097324591799,4.96628622652541,5.37228111832403,5.81146617368716,6.28655469512105,6.80048179815422,7.35642254459641,7.95781155819499,8.60836424387529,9.31209974165798,10.0733657570639,10.8968654214094,11.7876863479359,12.7513320632845,13.7937560084995,14.9213983196205,16.1412256150957,17.4607740358243,18.8881958037304,20.4323095865101,22.1026549797064,23.9095514427051,25.8641620527597,27.9785624709206,30.2658155459431,32.7400520170796,35.4165578143412,38.3118684955729,41.4438714037792,44.8319161758313,48.496934285282,52.4615683578319,56.7503120583586,61.3896614137401,66.4082785063484,71.8371685495186,77.7098714389746,84.0626689636199,90.9348089558542,98.3687477662216,106.41041256041,115.109485059084,124.519708473503,134.699219533192,145.710907656935,157.622803486073,170.508499180478,184.447603073803,199.526231496888];
+      if(idx>=127)throw new Error("Invalid scale index in sensor data config!");return v[idx];
+    }
+
+    // v3 FFT config (kept for completeness)
+    function parseConfigV3(b,c){
+      var cfg={}, binToHz;
+      cfg.frame_number=readU8(b,c);
+      var m=readU8(b,c);
+      cfg.sequence_number=(m&0x03);
+      var ax=(m>>2)&3; cfg.axis=ax===0?"x":ax===1?"y":ax===2?"z":"?";
+      if(((m>>4)&1)===0){cfg.resolution="low_res";binToHz=1.62762;}else{cfg.resolution="high_res";binToHz=0.8138;}
+      cfg.unit=((m>>5)&1)===0?"velocity":"acceleration";
+      cfg.start_frequency=readU16(b,c);
+      cfg.spectral_line_frequency=readU8(b,c); if(cfg.spectral_line_frequency===0) throw new Error("Invalid spectral_line_frequency");
+      cfg.scale=dataScale(readU8(b,c));
+      return {cfg:cfg,binToHz:binToHz};
+    }
+
+    function mirrorAllStats(selId, x,y,z, tC){
+      // Always return min/max/avg keys; for normal frames we mirror the single stat
+      var vx={min:x, max:x, avg:x}, vy={min:y, max:y, avg:y}, vz={min:z, max:z, avg:z};
+      var tt={min:tC, max:tC, avg:tC};
+      // If the device sent max_only or avg_only, values are still mirrored across all three
+      // so the keys exist. meta will flag this behavior.
+      return {vx: vx, vy: vy, vz: vz, tt: tt};
+    }
+
+    try{
+      var out={}, fPort=port, len=bytes.length, rawHex=toHexStr(bytes.slice(0));
+      if(!bytes || len===0){ return JSON.stringify(out); }
+
+      var c={i:0};
+      var header = readU8(bytes,c); // v3 header byte (hi nibble = proto)
+      var proto = (header>>4);
+
+      // ---- SENSOR EVENT v3 (normal/extended) on fPort 17/3 by length ----
+      if ((fPort===17 || fPort===3) && (len===11 || len===45)) {
+        if (len===11) {
+          // NORMAL: one statistic only -> we mirror to expose all three keys
+          var selection_raw = readU8(bytes,c);
+          var selection_id = selection_raw & 0x03; // mask lowest 2 bits
+          var selection = selName(selection_id);
+
+          var conditions = readU8(bytes,c);
+          var x = readU16(bytes,c)/100, y = readU16(bytes,c)/100, z = readU16(bytes,c)/100;
+          var tC = readI16(bytes,c)/100, tF = cToF(tC);
+
+          var filled = mirrorAllStats(selection_id, x,y,z, tC);
+
+          var se = {
+            protocol_version: 3,
+            selection,
+            selection_id,
+            selection_raw,
+            trigger_id: ((conditions>>6)&3),
+            trigger: trigName((conditions>>6)&3),
+            conditions_raw: conditions,
+            condition_0: (conditions&1),
+            condition_1: ((conditions>>1)&1),
+            condition_2: ((conditions>>2)&1),
+            condition_3: ((conditions>>3)&1),
+            condition_4: ((conditions>>4)&1),
+            rms_velocity: { x:{}, y:{}, z:{} },
+            temperature: {}
+          };
+
+          // Fill all three stats for each axis and temperature
+          se.rms_velocity.x.min=filled.vx.min; se.rms_velocity.x.max=filled.vx.max; se.rms_velocity.x.avg=filled.vx.avg;
+          se.rms_velocity.y.min=filled.vy.min; se.rms_velocity.y.max=filled.vy.max; se.rms_velocity.y.avg=filled.vy.avg;
+          se.rms_velocity.z.min=filled.vz.min; se.rms_velocity.z.max=filled.vz.max; se.rms_velocity.z.avg=filled.vz.avg;
+          se.temperature.min=filled.tt.min; se.temperature.max=filled.tt.max; se.temperature.avg=filled.tt.avg;
+
+          // Flat convenience keys
+          out.Vib_Velocity = {
+            X_Axis_Min: filled.vx.min, X_Axis_Max: filled.vx.max, X_Axis_RMS: filled.vx.avg,
+            Y_Axis_Min: filled.vy.min, Y_Axis_Max: filled.vy.max, Y_Axis_RMS: filled.vy.avg,
+            Z_Axis_Min: filled.vz.min, Z_Axis_Max: filled.vz.max, Z_Axis_RMS: filled.vz.avg
+          };
+          out.Temperature = {
+            Min: filled.tt.min, Max: filled.tt.max, Avg: filled.tt.avg,
+            MinF: tF, MaxF: tF, AvgF: tF
+          };
+
+          out.sensor_event = se;
+          out.meta = {
+            port: fPort, length: len,
+            header_byte: "0x"+hex2(header,2),
+            protocol_version: 3,
+            payload_hex: rawHex,
+            units: { velocity: "mm/s", temperature: "°C" },
+            // let downstream know these were mirrored from a single-stat frame
+            mirrored_from_selection: selection
+          };
+
+          return JSON.stringify(out);
+        } else {
+          // EXTENDED: true min/max/avg + accel + correct temperature
+          var selection = readU8(bytes,c); // 0 => extended
+          var conditions = readU8(bytes,c);
+
+          function vel(){ return readU16(bytes,c)/100.0; }
+          function acc(){ return readI16(bytes,c)/100.0; }
+          function tmp(){ return readI16(bytes,c)/100.0; }
+
+          var se = {
+            protocol_version: 3,
+            selection: selName(selection),
+            selection_id: selection,
+            selection_raw: selection,
+            trigger_id: ((conditions>>6)&3),
+            trigger: trigName((conditions>>6)&3),
+            conditions_raw: conditions,
+            condition_0: (conditions&1),
+            condition_1: ((conditions>>1)&1),
+            condition_2: ((conditions>>2)&1),
+            condition_3: ((conditions>>3)&1),
+            condition_4: ((conditions>>4)&1),
+            rms_velocity: { x:{}, y:{}, z:{} },
+            acceleration: { x:{}, y:{}, z:{} },
+            temperature: {}
+          };
+
+          se.rms_velocity.x.min=vel(); se.rms_velocity.x.max=vel(); se.rms_velocity.x.avg=vel();
+          se.rms_velocity.y.min=vel(); se.rms_velocity.y.max=vel(); se.rms_velocity.y.avg=vel();
+          se.rms_velocity.z.min=vel(); se.rms_velocity.z.max=vel(); se.rms_velocity.z.avg=vel();
+
+          se.acceleration.x.min=acc(); se.acceleration.x.peak=acc(); se.acceleration.x.rms=acc();
+          se.acceleration.y.min=acc(); se.acceleration.y.peak=acc(); se.acceleration.y.rms=acc();
+          se.acceleration.z.min=acc(); se.acceleration.z.peak=acc(); se.acceleration.z.rms=acc();
+
+          var tMin=tmp(), tMax=tmp(), tAvg=tmp();
+
+          se.temperature.min=tMin; se.temperature.max=tMax; se.temperature.avg=tAvg;
+
+          out.Vib_Velocity = {
+            X_Axis_Min: se.rms_velocity.x.min, X_Axis_Max: se.rms_velocity.x.max, X_Axis_RMS: se.rms_velocity.x.avg,
+            Y_Axis_Min: se.rms_velocity.y.min, Y_Axis_Max: se.rms_velocity.y.max, Y_Axis_RMS: se.rms_velocity.y.avg,
+            Z_Axis_Min: se.rms_velocity.z.min, Z_Axis_Max: se.rms_velocity.z.max, Z_Axis_RMS: se.rms_velocity.z.avg
+          };
+          out.Vib_Accel = {
+            X_Axis_Min: se.acceleration.x.min, X_Axis_Peak: se.acceleration.x.peak, X_Axis_RMS: se.acceleration.x.rms,
+            Y_Axis_Min: se.acceleration.y.min, Y_Axis_Peak: se.acceleration.y.peak, Y_Axis_RMS: se.acceleration.y.rms,
+            Z_Axis_Min: se.acceleration.z.min, Z_Axis_Peak: se.acceleration.z.peak, Z_Axis_RMS: se.acceleration.z.rms
+          };
+          out.Temperature = {
+            Min: tMin, Max: tMax, Avg: tAvg,
+            MinF: cToF(tMin), MaxF: cToF(tMax), AvgF: cToF(tAvg)
+          };
+
+          out.sensor_event = se;
+          out.meta = {
+            port: fPort, length: len,
+            header_byte: "0x"+hex2(header,2),
+            protocol_version: 3,
+            payload_hex: rawHex,
+            units: { velocity: "mm/s", acceleration: "m/s^2", temperature: "°C" }
+          };
+          return JSON.stringify(out);
+        }
+      }
+
+      // Sensor data (FFT) 46 bytes on 17/4 (unchanged)
+      if( (fPort===17 || fPort===4) && len===46 ){
+        var cfg = parseConfigV3(bytes,c);
+        var chunk=39, dataOff=7;
+        var raw = bytes.slice(dataOff);
+        var deltaF = cfg.cfg.spectral_line_frequency * cfg.binToHz;
+        var f0 = cfg.cfg.start_frequency * deltaF + cfg.cfg.frame_number * chunk * deltaF;
+
+        var freq=[], mag=[];
+        for(var i=0;i<chunk;i++){ freq[i]=f0 + i*deltaF; mag[i]= raw[i] * cfg.cfg.scale / 255.0; }
+        out.sensor_data = { protocol_version:3, config:cfg.cfg, frequency:freq, magnitude:mag };
+        out.meta = { port:fPort, length:len, header_byte:"0x"+hex2(header,2), protocol_version:3, payload_hex: rawHex, units:{ magnitude:"unit per scale", frequency:"Hz" } };
+        return JSON.stringify(out);
+      }
+
+      // Device status (9/12) on 17/2 (unchanged)
+      if( (fPort===17 || fPort===2) && (len===9 || len===12) ){
+        var ds = { protocol_version:3, base:{}, sensor:{} };
+        ds.base.battery_voltage = battV(bytes,c);
+        ds.base.temperature = readI8(bytes,c);
+        ds.base.lora_tx_counter = readU16(bytes,c);
+        ds.base.avg_rssi = rssiBucket(readU8(bytes,c));
+        ds.base.bist = "0x"+hex2(readU8(bytes,c),2);
+        ds.sensor.event_counter = readU8(bytes,c);
+        ds.sensor.bist = "0x"+hex2(readU8(bytes,c),2);
+        if(len===12){ ds.debug = "0x"; for(var j=c.i;j<bytes.length;j++) ds.debug += hex2(bytes[j],2); }
+        out.device_status = ds;
+        out.meta = { port:fPort, length:len, header_byte:"0x"+hex2(header,2), protocol_version:3, payload_hex: rawHex };
+        return JSON.stringify(out);
+      }
+
+      // Boot short (3/35) on 17/1 (unchanged)
+      if( (fPort===17 || fPort===1) && (len===3 || len===35) ){
+        var boot = { protocol_version:3, base:{}, sensor:{} };
+        var base_reason = readU8(bytes,c), sensor_reason = readU8(bytes,c);
+        function major(x){var m=x&0x0F;return m===0?"none":m===1?"config update":m===2?"firmware update":m===3?"button reset":m===4?"power":m===5?"communication failure":"system failure";}
+        function minor(x){var M=x&0x0F,m=(x>>4)&0x0F; if(M===2){return m===0?"success":m===1?"rejected":m===2?"error":m===3?"in progress":"unknown";} if(M===4){return m===0?"black out":m===1?"brown out":m===2?"power safe state":"unknown";} return ""; }
+        boot.base = { reboot_reason:{major:major(base_reason), minor:minor(base_reason)} };
+        boot.sensor = { reboot_reason:{major:major(sensor_reason), minor:minor(sensor_reason)} };
+        if(len===35){ boot.debug="0x"; for(var j=c.i;j<bytes.length;j++) boot.debug+=hex2(bytes[j],2); }
+        out.boot = boot;
+        out.meta = { port:fPort, length:len, header_byte:"0x"+hex2(header,2), protocol_version:3, payload_hex: rawHex };
+        return JSON.stringify(out);
+      }
+
+      // Fallback to original Decode function for other cases
+      return Decode(fPort, bytes);
+
+    }catch(e){
+      return JSON.stringify({ "Errors/decodeError": (e && e.message) ? e.message : String(e) });
+    }
   }
 
   /**
