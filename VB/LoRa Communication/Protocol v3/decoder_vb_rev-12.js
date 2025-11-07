@@ -95,9 +95,7 @@ if (typeof module !== 'undefined') {
     };
   }
 
-  /**
-   * LoRaWAN Payload Codec API Specification (TS013-1.0.0)
-   */
+  // LoRaWAN Payload Codec API Specification (TS013-1.0.0)
   function decodeUplink(input) {
     var result = {};
     try {
@@ -108,12 +106,9 @@ if (typeof module !== 'undefined') {
     return result;
   }
 
-  /**
-   * Decoder for Chirpstack (loraserver) network server
-   *
-   * Decode an uplink message from a buffer
-   * (array) of bytes to an object of fields.
-   */
+  // Decoder for Chirpstack (loraserver) network server
+  // Decode an uplink message from a buffer
+  // (array) of bytes to an object of fields.
   function Decode(fPort, bytes) { // Used for ChirpStack (aka LoRa Network Server)
 
     // Protocol Versions
@@ -251,10 +246,7 @@ if (typeof module !== 'undefined') {
   }
 
 
-  /**
-   * Decoder for reboot payload
-   *
-   */
+  // Decoder for reboot payload
   function DecodeRebootInfo(reboot_type, bytes) {
     var cursor = {};   // keeping track of which byte to process.
     cursor.value = 0;  // skip header that has been checked
@@ -496,20 +488,14 @@ if (typeof module !== 'undefined') {
     }
   }
 
-  /**
-   * Decoder for plain HEX string
-   */
+  // Decoder for plain HEX string
   function DecodeHexString(fPort, hex_string) {
     return Decode(fPort, from_hex_string(hex_string));
   }
 
-  /******************
-   * Helper functions
-   */
+  // Helper functions
 
-  /**
-    * Decode header
-    */
+  // Decode header
   function decode_header(bytes, cursor) {
     var header = {};
     var data = decode_uint8(bytes, cursor);
@@ -520,9 +506,7 @@ if (typeof module !== 'undefined') {
     return header;
   }
 
-  /**
-    * Decode header V3
-    */
+  // Decode header V3
   function decode_header_v3(bytes, cursor) {
     var header = {};
     var data = decode_uint8(bytes, cursor);
@@ -532,9 +516,7 @@ if (typeof module !== 'undefined') {
     return header;
   }
 
-  /**
-    * Get protocol version without increasing cursor
-    */
+  // Get protocol version without increasing cursor
   function get_protocol_version(bytes) {
     var cursor = {};
     cursor.value = 0;
@@ -546,9 +528,7 @@ if (typeof module !== 'undefined') {
     return protocol_version;
   }
 
-  /**
-    * Decode config header
-    */
+  // Decode config header
   function decode_config_header(bytes, cursor) {
     var header = {};
     var data = decode_uint8(bytes, cursor);
@@ -926,12 +906,9 @@ if (typeof module !== 'undefined') {
     return result;
   }
 
-  /**
-    * Decode battery voltage based on protocol version 3
-    *
-    * Raw value is between 0 - 255
-    * 0 represent 2 V, while 255 represent 4 V
-    */
+  // Decode battery voltage based on protocol version 3
+  // Raw value is between 0 - 255
+  // 0 represent 2 V, while 255 represent 4 V
   function decode_battery_voltage(bytes, cursor) {
     var raw = decode_uint8(bytes, cursor);
 
