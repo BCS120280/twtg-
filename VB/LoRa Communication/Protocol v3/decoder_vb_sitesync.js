@@ -48,17 +48,17 @@ function decodeUplink(input) {
     // Decode using corrected information
     result.data = decode_message(bytes, corrected_info.fPort, corrected_info.protocol);
 
-    // Add metadata (use flat keys for Sitesync compatibility)
-    result.data["metaData/protocol_version"] = corrected_info.protocol;
-    result.data["metaData/fPort"] = corrected_info.fPort;
-    result.data["metaData/payload_length"] = payload_length;
+    // Add metadata (use underscore-separated keys for Sitesync/Gson compatibility)
+    result.data.metaData_protocol_version = corrected_info.protocol;
+    result.data.metaData_fPort = corrected_info.fPort;
+    result.data.metaData_payload_length = payload_length;
 
   } catch (error) {
     result.errors.push(error.message);
-    // Use flat keys for Sitesync compatibility
-    result.data["Errors/decodeError"] = error.message;
-    result.data["metaData/diagnostics/code"] = "4";
-    result.data["metaData/diagnostics/raw_payload"] = bytes_to_hex(bytes);
+    // Use underscore-separated keys for Sitesync/Gson compatibility
+    result.data.decodeError = error.message;
+    result.data.diagnosticsCode = "4";
+    result.data.rawPayload = bytes_to_hex(bytes);
   }
 
   return result;
