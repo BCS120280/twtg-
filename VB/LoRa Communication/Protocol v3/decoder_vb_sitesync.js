@@ -12,7 +12,9 @@
 
 // Main entry point for Sitesync
 function Decoder(bytes, port) {
-  return decodeUplink({ fPort: port, bytes: bytes });
+  var result = decodeUplink({ fPort: port, bytes: bytes });
+  // Sitesync expects just the data object, not the wrapper
+  return result.data;
 }
 
 function decodeUplink(input) {
