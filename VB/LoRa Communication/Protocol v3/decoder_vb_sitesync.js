@@ -46,7 +46,10 @@ function decodeUplink(input) {
     }
 
     // Decode using corrected information
-    result.data = decode_message(bytes, corrected_info.fPort, corrected_info.protocol);
+    var decoded = decode_message(bytes, corrected_info.fPort, corrected_info.protocol);
+
+    // Flatten the structure for Sitesync/Gson compatibility (no nested objects)
+    result.data = flatten_object(decoded);
 
     // Add metadata (use underscore-separated keys for Sitesync/Gson compatibility)
     result.data.metaData_protocol_version = corrected_info.protocol;
@@ -247,6 +250,32 @@ function bytes_to_hex(bytes) {
     hex += uint8_to_hex(bytes[i]);
   }
   return hex;
+}
+
+/**
+ * Flatten nested objects into a single level with underscore-separated keys
+ * For Sitesync/Gson compatibility - no nested objects allowed
+ */
+function flatten_object(obj, prefix, result) {
+  prefix = prefix || '';
+  result = result || {};
+
+  for (var key in obj) {
+    if (obj.hasOwnProperty(key)) {
+      var value = obj[key];
+      var newKey = prefix ? prefix + '_' + key : key;
+
+      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+        // Recursively flatten nested objects
+        flatten_object(value, newKey, result);
+      } else {
+        // Store primitive values and arrays
+        result[newKey] = value;
+      }
+    }
+  }
+
+  return result;
 }
 
 function decode_header(bytes, cursor) {
