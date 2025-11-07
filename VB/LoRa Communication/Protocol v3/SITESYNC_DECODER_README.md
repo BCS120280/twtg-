@@ -67,13 +67,53 @@ function Decoder(bytes, port) {
 
 ### Sensor Event Message
 
+#### Normal Format (11 bytes)
+Contains a SINGLE value per axis based on selection byte:
+
+| Selection | Fields Decoded | Example Keys (after flattening) |
+|-----------|---------------|--------------------------------|
+| `min_only` | Minimum values only | `sensor_event_rms_velocity_x_min`, `sensor_event_temperature_min` |
+| `max_only` | Maximum values only | `sensor_event_rms_velocity_x_max`, `sensor_event_temperature_max` |
+| `avg_only` | Average values only | `sensor_event_rms_velocity_x_avg`, `sensor_event_temperature_avg` |
+
+**Normal format contains:**
+- 3 velocity values (x, y, z) - one value per axis based on selection
+- 1 temperature value based on selection
+- 5 condition flags (condition_0 to condition_4)
+- Trigger type
+
+#### Extended Format (45 bytes)
+Contains ALL min/max/avg values:
+
+**Extended format contains:**
+- **9 velocity values**: x, y, z each with min, max, avg (mm/s)
+  - `sensor_event_rms_velocity_x_min`, `sensor_event_rms_velocity_x_max`, `sensor_event_rms_velocity_x_avg`
+  - `sensor_event_rms_velocity_y_min`, `sensor_event_rms_velocity_y_max`, `sensor_event_rms_velocity_y_avg`
+  - `sensor_event_rms_velocity_z_min`, `sensor_event_rms_velocity_z_max`, `sensor_event_rms_velocity_z_avg`
+
+- **9 acceleration values**: x, y, z each with min, peak, rms (g)
+  - `sensor_event_acceleration_x_min`, `sensor_event_acceleration_x_peak`, `sensor_event_acceleration_x_rms`
+  - `sensor_event_acceleration_y_min`, `sensor_event_acceleration_y_peak`, `sensor_event_acceleration_y_rms`
+  - `sensor_event_acceleration_z_min`, `sensor_event_acceleration_z_peak`, `sensor_event_acceleration_z_rms`
+
+- **3 temperature values**: min, max, avg (°C)
+  - `sensor_event_temperature_min`, `sensor_event_temperature_max`, `sensor_event_temperature_avg`
+
+- **5 condition flags**: condition_0 to condition_4 (boolean)
+- **Trigger type**: `condition change`, `periodic`, or `button press`
+
+**Total: 29 flattened fields** for extended format
+
+#### Common Fields
+
 | Field | Description | Units |
 |-------|-------------|-------|
 | `selection` | Data selection type: `extended`, `min_only`, `max_only`, `avg_only` | - |
 | `condition_0` to `condition_4` | Condition flags (0 = inactive, 1 = active) | boolean |
 | `trigger` | Trigger type: `condition change`, `periodic`, `button press` | - |
-| `rms_velocity.x/y/z` | RMS velocity for each axis | mm/s |
-| `temperature` | Temperature reading | °C |
+| `rms_velocity` | RMS velocity values | mm/s |
+| `acceleration` | Acceleration values (extended format only) | g |
+| `temperature` | Temperature readings | °C |
 
 ### MetaData
 
