@@ -262,9 +262,7 @@ if (typeof module !== 'undefined') {
     return decode_reboot_info(reboot_type, bytes, cursor);
   }
 
-  /**
-   * Decoder for The Things Network network server (Compact Version with Little-Endian Fix)
-   */
+  // Decoder for Actility and The Things Network (Compact Version with Little-Endian Fix)
   function Decoder(bytes, port)
   {
     // --- helpers (scoped inside Decoder) - LITTLE-ENDIAN byte order ---
