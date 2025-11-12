@@ -10,6 +10,7 @@
 import time
 import socket
 from java.util.concurrent import Executors, TimeUnit, Callable
+from java.util.concurrent.locks import ReentrantLock
 from java.lang import Runnable
 
 # -------- Logger --------
@@ -164,8 +165,6 @@ class Config:
 CFG = None
 
 # -------- Thread-safe cache --------
-from java.util.concurrent.locks import ReentrantLock
-
 class ThreadSafeCache:
     """Thread-safe cache for ThingPark scan results"""
     def __init__(self):
