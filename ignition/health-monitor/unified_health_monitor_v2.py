@@ -164,21 +164,27 @@ class Config:
 CFG = None
 
 # -------- Thread-safe cache --------
-from threading import Lock
+from java.util.concurrent.locks import ReentrantLock
 
 class ThreadSafeCache:
     """Thread-safe cache for ThingPark scan results"""
     def __init__(self):
-        self.lock = Lock()
+        self.lock = ReentrantLock()
         self.data = {"t": 0, "newest": None, "count": 0}
 
     def get(self):
-        with self.lock:
+        self.lock.lock()
+        try:
             return dict(self.data)
+        finally:
+            self.lock.unlock()
 
     def update(self, **kwargs):
-        with self.lock:
+        self.lock.lock()
+        try:
             self.data.update(kwargs)
+        finally:
+            self.lock.unlock()
 
 _tp_scan_cache = ThreadSafeCache()
 
