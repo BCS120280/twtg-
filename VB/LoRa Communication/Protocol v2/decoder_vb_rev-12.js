@@ -64,6 +64,10 @@
  * - Reverted changes from revision 11
  * - Fixed issue where v2 has a magic offset in the firmware for acceleration data, which is incorrect (fix_freq_offset).
  *
+ * 2025-11-12 revision 12.1
+ * - Added support for minimal 11-byte boot messages in Protocol v1/v2
+ * - decode_boot_msg now handles partial boot messages gracefully, decoding available fields
+ *
  * YYYY-MM-DD revision X
  *
  */
@@ -920,77 +924,98 @@ if (typeof module !== 'undefined') {
   function decode_boot_msg(bytes, cursor) {
     var boot = {};
 
-    var expected_length = 46;
-    if (bytes.length != expected_length) {
-      throw new Error("Invalid boot message length " + bytes.length + " instead of " + expected_length);
+    var expected_length_full = 46;
+    var expected_length_minimal = 11; // Minimal boot message with basic base info
+
+    if (bytes.length != expected_length_full && bytes.length != expected_length_minimal) {
+      throw new Error("Invalid boot message length " + bytes.length + " instead of " + expected_length_full + " or " + expected_length_minimal);
     }
 
     boot.base = {};
     // byte[1]
-    var device_type = decode_uint8(bytes, cursor);
-    boot.base.device_type = device_types_lookup(device_type);
+    if (cursor.value < bytes.length) {
+      var device_type = decode_uint8(bytes, cursor);
+      boot.base.device_type = device_types_lookup(device_type);
+    }
 
     // byte[2..5]
-    var version_hash = decode_uint32(bytes, cursor);
-    boot.base.version_hash = '0x' + uint32_to_hex(version_hash);
+    if (cursor.value + 3 < bytes.length) {
+      var version_hash = decode_uint32(bytes, cursor);
+      boot.base.version_hash = '0x' + uint32_to_hex(version_hash);
+    }
 
     // byte[6..7]
-    var config_crc = decode_uint16(bytes, cursor);
-    boot.base.config_crc = '0x' + uint16_to_hex(config_crc);
+    if (cursor.value + 1 < bytes.length) {
+      var config_crc = decode_uint16(bytes, cursor);
+      boot.base.config_crc = '0x' + uint16_to_hex(config_crc);
+    }
 
     // byte[8]
-    var reset_flags = decode_uint8(bytes, cursor);
-    boot.base.reset_flags = '0x' + uint8_to_hex(reset_flags);
+    if (cursor.value < bytes.length) {
+      var reset_flags = decode_uint8(bytes, cursor);
+      boot.base.reset_flags = '0x' + uint8_to_hex(reset_flags);
+    }
 
     // byte[9]
-    boot.base.reboot_counter = decode_uint8(bytes, cursor);
+    if (cursor.value < bytes.length) {
+      boot.base.reboot_counter = decode_uint8(bytes, cursor);
+    }
 
     // byte[10]
-    base_reboot_type = decode_uint8(bytes, cursor);
+    if (cursor.value < bytes.length) {
+      base_reboot_type = decode_uint8(bytes, cursor);
 
-    // byte[11..18]
-    boot.base.reboot_info = decode_reboot_info(base_reboot_type, bytes, cursor);
+      // byte[11..18]
+      if (cursor.value + 7 < bytes.length) {
+        boot.base.reboot_info = decode_reboot_info(base_reboot_type, bytes, cursor);
+      }
+    }
 
     // byte[19]
-    var bist = decode_uint8(bytes, cursor);
-    boot.base.bist = '0x' + uint8_to_hex(bist);
+    if (cursor.value < bytes.length) {
+      var bist = decode_uint8(bytes, cursor);
+      boot.base.bist = '0x' + uint8_to_hex(bist);
+    }
 
-    boot.sensor = {};
-    // byte[20]
-    var device_type = decode_uint8(bytes, cursor);
-    boot.sensor.device_type = device_types_lookup(device_type);
+    // Only decode sensor data if we have a full message
+    if (bytes.length == expected_length_full) {
+      boot.sensor = {};
+      // byte[20]
+      var device_type = decode_uint8(bytes, cursor);
+      boot.sensor.device_type = device_types_lookup(device_type);
 
-    // byte[21..25]
-    boot.sensor.device_id = decode_device_id(bytes, cursor);
+      // byte[21..25]
+      boot.sensor.device_id = decode_device_id(bytes, cursor);
 
-    // byte[26..29]
-    var version_hash = decode_uint32(bytes, cursor);
-    boot.sensor.version_hash = '0x' + uint32_to_hex(version_hash);
+      // byte[26..29]
+      var version_hash = decode_uint32(bytes, cursor);
+      boot.sensor.version_hash = '0x' + uint32_to_hex(version_hash);
 
-    // byte[30..31]
-    var config_crc = decode_uint16(bytes, cursor);
-    boot.sensor.config_crc = '0x' + uint16_to_hex(config_crc);
+      // byte[30..31]
+      var config_crc = decode_uint16(bytes, cursor);
+      boot.sensor.config_crc = '0x' + uint16_to_hex(config_crc);
 
-    // byte[32..33]
-    var data_config_crc = decode_uint16(bytes, cursor);
-    boot.sensor.data_config_crc = '0x' + uint16_to_hex(data_config_crc);
+      // byte[32..33]
+      var data_config_crc = decode_uint16(bytes, cursor);
+      boot.sensor.data_config_crc = '0x' + uint16_to_hex(data_config_crc);
 
-    // byte[34]
-    var reset_flags = decode_uint8(bytes, cursor);
-    boot.sensor.reset_flags = '0x' + uint8_to_hex(reset_flags);
+      // byte[34]
+      var reset_flags = decode_uint8(bytes, cursor);
+      boot.sensor.reset_flags = '0x' + uint8_to_hex(reset_flags);
 
-    // byte[35]
-    boot.sensor.reboot_counter = decode_uint8(bytes, cursor);
+      // byte[35]
+      boot.sensor.reboot_counter = decode_uint8(bytes, cursor);
 
-    // byte[36]
-    sensor_reboot_type = decode_uint8(bytes, cursor);
+      // byte[36]
+      sensor_reboot_type = decode_uint8(bytes, cursor);
 
-    // byte[37..44]
-    boot.sensor.reboot_info = decode_reboot_info(sensor_reboot_type, bytes, cursor);
+      // byte[37..44]
+      boot.sensor.reboot_info = decode_reboot_info(sensor_reboot_type, bytes, cursor);
 
-    // byte[45]
-    var bist = decode_uint8(bytes, cursor);
-    boot.sensor.bist = '0x' + uint8_to_hex(bist);
+      // byte[45]
+      var bist = decode_uint8(bytes, cursor);
+      boot.sensor.bist = '0x' + uint8_to_hex(bist);
+    }
 
     return boot;
   }
